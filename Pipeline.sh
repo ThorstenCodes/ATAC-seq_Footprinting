@@ -10,7 +10,9 @@ OUTDIR=$5
 THREADS=$6
 REGIONS=${7:-} # should be able to be nothing than take PEAKS
 
+# Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
+mkdir -p "${OUTDIR}/Footprint_Scores"
 
 # Loop through BAM files
 for bam_file in "${PATH_BAM_FILES}"/*.bam; do
@@ -20,6 +22,7 @@ for bam_file in "${PATH_BAM_FILES}"/*.bam; do
 
     echo "Processing ${SAMPLE} with BAM: ${bam_file}"
 
+    # --- ATACorrect from TOBIAS Pipeline ---
     TOBIAS ATACorrect \
         --bam "${bam_file}" \
         --genome "${GENOME}" \
@@ -36,11 +39,11 @@ for bam_file in "${PATH_BAM_FILES}"/*.bam; do
     fi
 
 
-
+    # --- ScoreBigwig/ FootprintScores from TOBIAS pipeline ---
     TOBIAS FootprintScores \
     --signal "${OUTDIR}/ATACorrect_output/${SAMPLE}"*_corrected.bw \
     --regions "${regions_file}" \
-    --output "${OUTDIR}/${SAMPLE}_footprints_score.bw"  \
+    --output "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw"  \
     --cores ${THREADS}
 
 done
