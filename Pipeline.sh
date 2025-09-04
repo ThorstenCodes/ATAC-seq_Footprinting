@@ -1,2 +1,147 @@
-#! usr/bin/env/ bash
--euo pipefail
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Arguments
+PATH_BAM_FILES=$1   # Folder with BAM files
+PEAKS=$2
+GENOME=$3
+BLACKLIST=$4
+OUTDIR=$5
+THREADS=$6
+REGIONS=${7:-} # should be able to be nothing than take PEAKS
+
+mkdir -p "${OUTDIR}/ATACorrect_output"
+
+# Loop through BAM files
+for bam_file in "${PATH_BAM_FILES}"/*.bam; do
+    # Extract sample name (basename without extensions)
+    filename=$(basename "${bam_file}")           # e.g. sample.mLb.clN.sorted.bam
+    SAMPLE=${filename%%.*}                       # take everything before first '.'
+
+    echo "Processing ${SAMPLE} with BAM: ${bam_file}"
+
+    TOBIAS ATACorrect \
+        --bam "${bam_file}" \
+        --genome "${GENOME}" \
+        --peaks "${PEAKS}" \
+        --blacklist "${BLACKLIST}" \
+        --outdir "${OUTDIR}/ATACorrect_output" \
+        --cores "${THREADS}"
+
+    # --- Decide which region file to use to score bigwigs , can save computing time if less peaks ---
+    if [[ -n "$REGIONS" ]]; then
+        regions_file=$REGIONS
+    else
+        regions_file=$PEAKS
+    fi
+
+
+
+    TOBIAS FootprintScores \
+    --signal "${OUTDIR}/ATACorrect_output/${SAMPLE}"*_corrected.bw \
+    --regions "${regions_file}" \
+    --output "${OUTDIR}/${SAMPLE}_footprints_score.bw"  \
+    --cores ${THREADS}
+
+done
+
+
+
+
+
+
+  TOBIAS BINDetect \
+    --motifs /media/rad/HDD1/motif_databases.12.23/motif_databases/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format_plus_Foxp1_GN.meme \
+    --signals /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/FKO_footprints_scores_Foxp1_EP.bw \
+	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/PKF1OE_footprints_scores_Foxp1_EP.bw \
+	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP0h_footprints_scores_Foxp1_EP.bw \
+              /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP24h_footprints_scores_Foxp1_EP.bw  \
+	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/Kras0h_footprints_scores_Foxp1_EP.bw \
+	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/Kras24h_footprints_scores_Foxp1_EP.bw \
+              /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo0h_footprints_scores_Foxp1_EP.bw \
+	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo24h_footprints_scores_Foxp1_EP.bw \
+    --genome "${genome}" \
+    --peaks "${peaks}" \
+    --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
+    --outdir "${output_root_folder}" \
+    --cond_names  FKO PKF1OE GFP0h GFP24h Kras0h Kras24h KrFo0h KrFo24h
+
+#Plottracks
+    # ============================== CONFIG ==============================
+REGIONS="/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/ATAC_peaks_overlapping_HiC_TSS_only_whole_promoter.bed"
+GTF="gtf_no_chr.gtf"
+
+# BigWig files
+BIGWIGS=(
+    "/media/rad/HDD1/ChipSeqThorstenWS6/TK_2022_Foxp1_pvalue005_consensus3/bwa/mergedLibrary/bigwig/PKF1OE_R4.bigWig"
+    "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/bigwig/GFP0h.mRp.clN.bigWig"
+    "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP0h.mRp.clN.sorted_corrected.bw"
+    "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/bigwig/KrFo24h.mRp.clN.bigWig"
+    "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo24h.mRp.clN.sorted_corrected.bw"
+)
+
+LABELS=("Chip" "GFPATAC" "GFPFoot" "PKRFATAC" "PKRFFoot")
+
+COLORS=(
+    "green"
+    "orange"
+    "blue"
+    "orange"
+    "blue"
+)
+
+# Validate
+if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
+    echo "ERROR: Mismatch between number of bigwigs, labels, and colors"
+    exit 1
+fi
+
+# ============================== MAIN LOOP ==============================
+Conditions=("GFP0h" "KrFo24h")
+
+for Sample in "${Conditions[@]}"; do
+    TFBS="merged_selected_TFs_list_${Sample}_bound_unique.bed"
+
+    if [[ ! -f "$TFBS" ]]; then
+        echo "?? Warning: TFBS file not found for $Sample: $TFBS"
+        continue
+    fi
+
+    OUTDIR="TOBIAS_latest_samplespecific_final/${Sample}"
+    mkdir -p "$OUTDIR"
+
+    echo "Running TOBIAS PlotTracks for $Sample..."
+
+    TOBIAS PlotTracks \
+        --bigwigs "${BIGWIGS[@]}" \
+        --regions "$REGIONS" \
+        --sites "$TFBS" \
+        --gtf "$GTF" \
+        --labels "${LABELS[@]}" \
+        --colors "${COLORS[@]}" \
+        --width 15 \
+        --max-transcripts 1 \
+        --outdir "$OUTDIR"
+
+    echo "PlotTracks completed for $Sample ? $OUTDIR"
+done
+
+### GTF Filtering
+
+#!/bin/bash
+
+# ========= CONFIGURE THIS =========
+INPUT_GTF="gencode.vM10.annotation.gtf.gz"                     # Path to compressed GTF
+GENE_LIST=("Foxp1" "Frmd4b" "Lmod3" )                                    # Genes to keep
+OUTPUT_GTF="filtered_TF_genes.gtf"                            # Output path
+# ==================================
+
+# Create a regex pattern like: (IRF1|IRF2|...)
+PATTERN=$(IFS=\| ; echo "${GENE_LIST[*]}")
+
+# Decompress and filter
+zcat "$INPUT_GTF" | awk -v pat="gene_name \"(${PATTERN})\"" '
+    $0 ~ pat { print }
+' > "$OUTPUT_GTF"
+
+echo "Filtered GTF written to: $OUTPUT_GTF"
