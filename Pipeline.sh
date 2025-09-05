@@ -6,9 +6,10 @@ PATH_BAM_FILES=$1   # Folder with BAM files
 PEAKS=$2
 GENOME=$3
 BLACKLIST=$4
-OUTDIR=$5
-THREADS=$6
-REGIONS=${7:-} # should be able to be nothing than take PEAKS
+MOTIFS=$5
+OUTDIR=$6
+THREADS=$7
+REGIONS=${8:-} # can be not given
 
 # Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
@@ -48,14 +49,15 @@ for bam_file in "${PATH_BAM_FILES}"/*.bam; do
 
 done
 
-
+# Peak Header muss generiert werden oder erzeugt werden oder hardcoded
+#
 
 
 
 
   TOBIAS BINDetect \
-    --motifs /media/rad/HDD1/motif_databases.12.23/motif_databases/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format_plus_Foxp1_GN.meme \
-    --signals /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/FKO_footprints_scores_Foxp1_EP.bw \
+    --motifs "${MOTIFS}" \
+    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw" \
 	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/PKF1OE_footprints_scores_Foxp1_EP.bw \
 	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP0h_footprints_scores_Foxp1_EP.bw \
               /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP24h_footprints_scores_Foxp1_EP.bw  \
@@ -63,11 +65,11 @@ done
 	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/Kras24h_footprints_scores_Foxp1_EP.bw \
               /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo0h_footprints_scores_Foxp1_EP.bw \
 	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo24h_footprints_scores_Foxp1_EP.bw \
-    --genome "${genome}" \
-    --peaks "${peaks}" \
+    --genome "${GENOME}" \
+    --peaks "${PEAKS}" \
     --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
-    --outdir "${output_root_folder}" \
-    --cond_names  FKO PKF1OE GFP0h GFP24h Kras0h Kras24h KrFo0h KrFo24h
+    --outdir "${OUTDIR}/BINDetect" \
+    --cond_names  "${SAMPLE}"
 
 #Plottracks
     # ============================== CONFIG ==============================
