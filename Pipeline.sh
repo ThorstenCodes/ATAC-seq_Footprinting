@@ -15,6 +15,7 @@ MODUS=$9 #Single or Differential
 # Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
 mkdir -p "${OUTDIR}/Footprint_Scores"
+mkdir -p "${OUTDIR}/BINDetect"
 
 # Loop through BAM files
 for bam_file in "${PATH_BAM_FILES}"/*.bam; do
@@ -40,7 +41,6 @@ for bam_file in "${PATH_BAM_FILES}"/*.bam; do
         regions_file=$PEAKS
     fi
 
-
     # --- ScoreBigwig/ FootprintScores from TOBIAS pipeline ---
     TOBIAS FootprintScores \
     --signal "${OUTDIR}/ATACorrect_output/${SAMPLE}"*_corrected.bw \
@@ -53,33 +53,49 @@ done
 
 ## Run Binddetect for single condition or differential binding
 
-
-
 # Peak Header muss generiert werden oder erzeugt werden oder hardcoded
-awk 'BEGIN{OFS="\t"} {print $1, $2, $3, "peak_"NR}' "${PEAKS}" > "${input_folder}/Header_ATAC_Peaks.txt"
+awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4}' "${REGIONS}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
 
+if [[ "$MODUS" == "Single" ]]; then
+    # Loop over all footprint bigWig files
+    for bw_file in "${OUTDIR}/Footprint_Scores/"*_footprints_score.bw; do
+        # Extract sample name from filename
+        SAMPLE=$(basename "$bw_file" | sed 's/_footprints_score.bw//')
 
-if $MODUS==Single
-  TOBIAS BINDetect
-    --motifs "${MOTIFS}" \
-    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw" \
-    --genome "${GENOME}" \
-    --peaks "${PEAKS}" \
-    --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
-    --outdir "${OUTDIR}/BINDetect" \
-    --cond_names  "${SAMPLE}"
+        echo "Running BINDetect for single sample: $SAMPLE"
 
+        TOBIAS BINDetect \
+            --motifs "${MOTIFS}" \
+            --signals "$bw_file" \
+            --genome "${GENOME}" \
+            --peaks "${regions_file}" \
+            --peak_header "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt" \
+            --outdir "${OUTDIR}/BINDetect/${SAMPLE}" \
+            --cond_names "${SAMPLE}"
+    done
 
 else
+    # Make sure at least two samples exist
+    if [[ ${#samples[@]} -lt 2 ]]; then
+        echo "Error: Differential BINDetect requires at least 2 samples."
+        exit 1
+    fi
+
+    # Assign first two samples for differential analysis
+    SAMPLE_A=${samples[0]}
+    SAMPLE_B=${samples[1]}
+
 
   TOBIAS BINDetect \
     --motifs "${MOTIFS}" \
-    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw" \
+    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE_A}_footprints_score.bw" \
+              "${OUTDIR}/Footprint_Scores/${SAMPLE_B}_footprints_score.bw" \
     --genome "${GENOME}" \
-    --peaks "${PEAKS}" \
+    --peaks "${regions_file}" \
     --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
     --outdir "${OUTDIR}/BINDetect" \
-    --cond_names  "${SAMPLE}"
+    --cond_names  "${SAMPLE_A}"  "${SAMPLE_B}"
+fi
 
 #Plottracks
     # ============================== CONFIG ==============================
