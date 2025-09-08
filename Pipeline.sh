@@ -10,6 +10,7 @@ MOTIFS=$5
 OUTDIR=$6
 THREADS=$7
 REGIONS=${8:-} # can be not given
+MODUS=$9 #Single or Differential
 
 # Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
@@ -49,22 +50,31 @@ for bam_file in "${PATH_BAM_FILES}"/*.bam; do
 
 done
 
+
+## Run Binddetect for single condition or differential binding
+
+
+
 # Peak Header muss generiert werden oder erzeugt werden oder hardcoded
-#
+awk 'BEGIN{OFS="\t"} {print $1, $2, $3, "peak_"NR}' "${PEAKS}" > "${input_folder}/Header_ATAC_Peaks.txt"
 
 
+if $MODUS==Single
+  TOBIAS BINDetect
+    --motifs "${MOTIFS}" \
+    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw" \
+    --genome "${GENOME}" \
+    --peaks "${PEAKS}" \
+    --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
+    --outdir "${OUTDIR}/BINDetect" \
+    --cond_names  "${SAMPLE}"
 
+
+else
 
   TOBIAS BINDetect \
     --motifs "${MOTIFS}" \
     --signals "${OUTDIR}/Footprint_Scores/${SAMPLE}_footprints_score.bw" \
-	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/PKF1OE_footprints_scores_Foxp1_EP.bw \
-	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP0h_footprints_scores_Foxp1_EP.bw \
-              /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP24h_footprints_scores_Foxp1_EP.bw  \
-	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/Kras0h_footprints_scores_Foxp1_EP.bw \
-	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/Kras24h_footprints_scores_Foxp1_EP.bw \
-              /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo0h_footprints_scores_Foxp1_EP.bw \
-	     /media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo24h_footprints_scores_Foxp1_EP.bw \
     --genome "${GENOME}" \
     --peaks "${PEAKS}" \
     --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
