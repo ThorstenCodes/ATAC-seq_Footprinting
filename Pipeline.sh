@@ -53,9 +53,10 @@ done
 
 ## Run Binddetect for single condition or differential binding
 
-# Peak Header muss generiert werden oder erzeugt werden oder hardcoded
+# Generate Peak Header file before running BINDetect
 awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4}' "${REGIONS}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
 
+# Check if User choose Single or Differential Analysis option
 if [[ "$MODUS" == "Single" ]]; then
     # Loop over all footprint bigWig files
     for bw_file in "${OUTDIR}/Footprint_Scores/"*_footprints_score.bw; do
