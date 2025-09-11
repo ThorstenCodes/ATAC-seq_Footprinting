@@ -11,6 +11,8 @@ OUTDIR=$6
 THREADS=$7
 REGIONS=${8:-} # can be not given
 MODUS=$9 #Single or Differential
+CONTROL=${10:-}
+TREATMENT=${11:-}
 
 # Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
@@ -56,7 +58,7 @@ done
 # Generate Peak Header file before running BINDetect
 awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4}' "${REGIONS}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
 
-# Check if User choose Single or Differential Analysis option
+# Check if user chose Single or Differential Analysis
 if [[ "$MODUS" == "Single" ]]; then
     # Loop over all footprint bigWig files
     for bw_file in "${OUTDIR}/Footprint_Scores/"*_footprints_score.bw; do
@@ -75,28 +77,31 @@ if [[ "$MODUS" == "Single" ]]; then
             --cond_names "${SAMPLE}"
     done
 
-else
+#if user chose Differential analysis
+elif [[ "$MODUS" == "Differential" ]]; then
     # Make sure at least two samples exist
-    if [[ ${#samples[@]} -lt 2 ]]; then
-        echo "Error: Differential BINDetect requires at least 2 samples."
+    if [[ -z "$SAMPLE_A" || -z "$SAMPLE_B" -lt 2 ]]; then
+        echo "Error: For Differential mode, please provide SAMPLE_A and SAMPLE_B as arguments."
         exit 1
     fi
 
-    # Assign first two samples for differential analysis
-    SAMPLE_A=${samples[0]}
-    SAMPLE_B=${samples[1]}
+    echo "Running BINDetect for differential analysis: $SAMPLE_A vs $SAMPLE_B"
 
+    TOBIAS BINDetect \
+        --motifs "${MOTIFS}" \
+        --signals "${OUTDIR}/Footprint_Scores/${SAMPLE_A}_footprints_score.bw" \
+                  "${OUTDIR}/Footprint_Scores/${SAMPLE_B}_footprints_score.bw" \
+        --genome "${GENOME}" \
+        --peaks "${regions_file}" \
+        --peak_header "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt" \
+        --outdir "${OUTDIR}/BINDetect/${SAMPLE_A}_vs_${SAMPLE_B}" \
+        --cond_names "${SAMPLE_A}" "${SAMPLE_B}"
 
-  TOBIAS BINDetect \
-    --motifs "${MOTIFS}" \
-    --signals "${OUTDIR}/Footprint_Scores/${SAMPLE_A}_footprints_score.bw" \
-              "${OUTDIR}/Footprint_Scores/${SAMPLE_B}_footprints_score.bw" \
-    --genome "${GENOME}" \
-    --peaks "${regions_file}" \
-    --peak_header "${input_folder}/Header_ATAC_Peaks.txt" \
-    --outdir "${OUTDIR}/BINDetect" \
-    --cond_names  "${SAMPLE_A}"  "${SAMPLE_B}"
+else
+    echo "Error: MODUS not given. Choose between 'Single' or 'Differential'."
+    exit 1
 fi
+
 
 #Plottracks
     # ============================== CONFIG ==============================
