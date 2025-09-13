@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Arguments
 PATH_BAM_FILES=$1   # Folder with BAM files
-PEAKS=$2
+PEAKS=$2 # needs to be .bed format
 GENOME=$3
 BLACKLIST=$4
 MOTIFS=$5
@@ -56,7 +56,7 @@ done
 ## Run Binddetect for single condition or differential binding
 
 # Generate Peak Header file before running BINDetect
-awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4}' "${regions_file}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
+awk 'BEGIN{OFS="\t"} {print $0}' "${regions_file}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
 
 # Check if user chose Single or Differential Analysis
 if [[ "$MODUS" == "Single" ]]; then
@@ -103,6 +103,26 @@ else
     echo "Error: MODUS not given. Choose between 'Single' or 'Differential'."
     exit 1
 fi
+
+
+#### With Cmd + Shift + 7 one can toggle commands in Visual Studio Code!!!
+
+#Testrun:
+bash Pipeline.sh /media/rad/HDD1/TK_Test/ATAC_Pipeline \
+      /media/rad/HDD1/TK_Test/ATAC_Pipeline/macs/narrowPeak/consensus/consensus_peaks.mRp.clN.bed \
+      /media/rad/HDD1/2023_AnalysisTK/mmu_GRCm38_gencode.fa \
+      /media/rad/HDD1/ChipSeqThorstenWS6/Blacklists/resources/mm10-blacklist.v2.bed \
+      /media/rad/HDD1/motif_databases.12.23/motif_databases/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format_plus_Foxp1_GN.meme  \
+      /media/rad/HDD1/TK_Test/ATAC_Pipeline \
+      4 \
+      /media/rad/HDD1/TK_Test/ATAC_Pipeline/ATAC_peaks_overlapping_HiC_TSS_including_promoter_region.bed \
+      Differential \
+      GFP0h \
+      PKF1OE
+
+
+
+
 
 
 # #Plottracks
