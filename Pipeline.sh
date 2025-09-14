@@ -54,9 +54,22 @@ done
 
 
 ## Run Binddetect for single condition or differential binding
+# To generate Header automatically we first count columsn in region file
+ncol=$(awk 'NR==1{print NF}' "${regions_file}")
 
-# Generate Peak Header file before running BINDetect
-awk 'BEGIN{OFS="\t"} {print $0}' "${regions_file}" > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
+# Generate the header for the number of columns, if no column name is given than just Col1, Col2, Col3 is written in the header.
+awk -v n=$ncol 'BEGIN{
+    OFS="\t";
+    names[1]="Chr"; names[2]="Start"; names[3]="End"; names[4]="PeakID";
+    names[5]="Strand"; names[6]="Score"; names[7]="Annotation";
+    names[8]="GeneID"; names[9]="GeneName";
+    for (i=1; i<=n; i++) {
+        if (i>1) printf OFS;
+        if (i in names) printf names[i]; else printf "Col" i;
+    }
+    print ""
+}' > "${OUTDIR}/BINDetect/Header_ATAC_Peaks.txt"
+
 
 # Check if user chose Single or Differential Analysis
 if [[ "$MODUS" == "Single" ]]; then
@@ -114,7 +127,7 @@ bash Pipeline.sh /media/rad/HDD1/TK_Test/ATAC_Pipeline \
       /media/rad/HDD1/ChipSeqThorstenWS6/Blacklists/resources/mm10-blacklist.v2.bed \
       /media/rad/HDD1/motif_databases.12.23/motif_databases/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format_plus_Foxp1_GN.meme  \
       /media/rad/HDD1/TK_Test/ATAC_Pipeline \
-      4 \
+      40 \
       /media/rad/HDD1/TK_Test/ATAC_Pipeline/ATAC_peaks_overlapping_HiC_TSS_including_promoter_region.bed \
       Differential \
       GFP0h \
