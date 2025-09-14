@@ -120,21 +120,24 @@ fi
 
 #### With Cmd + Shift + 7 one can toggle commands in Visual Studio Code!!!
 
-#Testrun:
-bash Pipeline.sh /media/rad/HDD1/TK_Test/ATAC_Pipeline \
-      /media/rad/HDD1/TK_Test/ATAC_Pipeline/macs/narrowPeak/consensus/consensus_peaks.mRp.clN.bed \
-      /media/rad/HDD1/2023_AnalysisTK/mmu_GRCm38_gencode.fa \
-      /media/rad/HDD1/ChipSeqThorstenWS6/Blacklists/resources/mm10-blacklist.v2.bed \
-      /media/rad/HDD1/motif_databases.12.23/motif_databases/MOUSE/HOCOMOCOv11_core_MOUSE_mono_meme_format_plus_Foxp1_GN.meme  \
-      /media/rad/HDD1/TK_Test/ATAC_Pipeline \
-      40 \
-      /media/rad/HDD1/TK_Test/ATAC_Pipeline/ATAC_peaks_overlapping_HiC_TSS_including_promoter_region.bed \
-      Differential \
-      GFP0h \
-      PKF1OE
 
+# #!/bin/bash
 
+# # ========= CONFIGURE THIS =========
+# INPUT_GTF="gencode.vM10.annotation.gtf.gz"                     # Path to compressed GTF
+# GENE_LIST=("Foxp1" "Frmd4b" "Lmod3" )                                    # Genes to keep
+# OUTPUT_GTF="filtered_TF_genes.gtf"                            # Output path
+# # ==================================
 
+# # Create a regex pattern like: (IRF1|IRF2|...)
+# PATTERN=$(IFS=\| ; echo "${GENE_LIST[*]}")
+
+# # Decompress and filter
+# zcat "$INPUT_GTF" | awk -v pat="gene_name \"(${PATTERN})\"" '
+#     $0 ~ pat { print }
+# ' > "$OUTPUT_GTF"
+
+# echo "Filtered GTF written to: $OUTPUT_GTF"
 
 
 
