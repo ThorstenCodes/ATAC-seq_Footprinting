@@ -7,6 +7,11 @@
 SPECIES=$1    # Human or Mouse
 TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
 OUTPUT_GTF=$3 # Output GTF filename (must end with .gtf)
+LOCI=$4       # bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
+PATH_TO_BIGWIGS=${5:-}
+NAME_OF_BW_SAMPLE=${6:-}
+TRACK_COLORS=${7:-}
+
 
 mkdir -p "$PWD/Gene_Annotation/"
 
@@ -37,7 +42,7 @@ else
     TF_LIST=$TF_INPUT
 fi
 
-# Build regex pattern like (IRF1|IRF2|CPA1|ZAG2)
+# Create a regex pattern like which introduces OR (|} betweent the gene names.This allows awk to filter for each gene name in the list. The pattern looks like this in the end: e.g. (IRF1|IRF2|...)
 PATTERN=$(echo "$TF_LIST" | tr ' ' '|')
 
 # -----------------------------
@@ -50,36 +55,28 @@ zcat "$INPUT_GTF" | awk -v pat="gene_name \"($PATTERN)\"" '
 echo "Filtered GTF written to: $OUTPUT_GTF"
 
 
+# ============================== PLOTTracks ==============================
+REGIONS=$LOCI
+GTF="$INPUT_GTF"
 
-# #Plottracks
-#     # ============================== CONFIG ==============================
-# REGIONS="/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/ATAC_peaks_overlapping_HiC_TSS_only_whole_promoter.bed"
-# GTF="gtf_no_chr.gtf"
+# BigWig files
+BIGWIGS=$PATH_TO_BIGWIGS
 
-# # BigWig files
-# BIGWIGS=(
-#     "/media/rad/HDD1/ChipSeqThorstenWS6/TK_2022_Foxp1_pvalue005_consensus3/bwa/mergedLibrary/bigwig/PKF1OE_R4.bigWig"
-#     "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/bigwig/GFP0h.mRp.clN.bigWig"
-#     "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/GFP0h.mRp.clN.sorted_corrected.bw"
-#     "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/bigwig/KrFo24h.mRp.clN.bigWig"
-#     "/media/rad/HDD1/2023_AnalysisTK/2023_ACC_ATAC/Nextflow_Results_D_A_Comp/bwa/mergedReplicate/2025_Footprinting/KrFo24h.mRp.clN.sorted_corrected.bw"
-# )
+LABELS=("Chip" "GFPATAC" "GFPFoot" "PKRFATAC" "PKRFFoot")
 
-# LABELS=("Chip" "GFPATAC" "GFPFoot" "PKRFATAC" "PKRFFoot")
+COLORS=(
+    "green"
+    "orange"
+    "blue"
+    "orange"
+    "blue"
+)
 
-# COLORS=(
-#     "green"
-#     "orange"
-#     "blue"
-#     "orange"
-#     "blue"
-# )
-
-# # Validate
-# if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
-#     echo "ERROR: Mismatch between number of bigwigs, labels, and colors"
-#     exit 1
-# fi
+# Validate
+if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
+    echo "ERROR: Mismatch between number of bigwigs, labels, and colors"
+    exit 1
+fi
 
 # # ============================== MAIN LOOP ==============================
 # Conditions=("GFP0h" "KrFo24h")
