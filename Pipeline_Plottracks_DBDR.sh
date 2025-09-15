@@ -4,21 +4,50 @@
 ### If you are interested in the certain TFs and where they bind based on the footprints detected in a certain non-coding region or promoter region
 ### you can give this region here and see on a Plottrack where they are. Furthermore you can analyse if there is different binding detected for this TFs in the given region!
 
-# # ========= CONFIGURE THIS =========
-# INPUT_GTF="gencode.vM10.annotation.gtf.gz"                     # Path to compressed GTF
-# GENE_LIST=("Foxp1" "Frmd4b" "Lmod3" )                                    # Genes to keep
-# OUTPUT_GTF="filtered_TF_genes.gtf"                            # Output path
-# # ==================================
+SPECIES=$1    # Human or Mouse
+TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
+OUTPUT_GTF=$3 # Output GTF filename (must end with .gtf)
 
-# # Create a regex pattern like: (IRF1|IRF2|...)
-# PATTERN=$(IFS=\| ; echo "${GENE_LIST[*]}")
+mkdir -p "$PWD/Gene_Annotation/"
 
-# # Decompress and filter
-# zcat "$INPUT_GTF" | awk -v pat="gene_name \"(${PATTERN})\"" '
-#     $0 ~ pat { print }
-# ' > "$OUTPUT_GTF"
+# -----------------------------
+# Download GTF depending on species
+# -----------------------------
+if [[ "$SPECIES" == "Human" ]]; then
+    wget -nc -P "$PWD/Gene_Annotation/" \
+        https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.basic.annotation.gtf.gz
+    INPUT_GTF="$PWD/Gene_Annotation/gencode.v49.basic.annotation.gtf.gz"
+elif [[ "$SPECIES" == "Mouse" ]]; then
+    wget -nc -P "$PWD/Gene_Annotation/" \
+        https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M38/gencode.vM38.basic.annotation.gtf.gz
+    INPUT_GTF="$PWD/Gene_Annotation/gencode.vM38.basic.annotation.gtf.gz"
+else
+    echo 'Error: Species must be "Mouse" or "Human" as argument.'
+    exit 1
+fi
 
-# echo "Filtered GTF written to: $OUTPUT_GTF"
+# -----------------------------
+# Parse TF list (file or inline)
+# -----------------------------
+if [[ -f "$TF_INPUT" ]]; then
+    # Case: file provided → read one gene per line (or tab/space)
+    TF_LIST=$(tr '\t' ' ' < "$TF_INPUT" | tr '\n' ' ')
+else
+    # Case: quoted string list
+    TF_LIST=$TF_INPUT
+fi
+
+# Build regex pattern like (IRF1|IRF2|CPA1|ZAG2)
+PATTERN=$(echo "$TF_LIST" | tr ' ' '|')
+
+# -----------------------------
+# Filter GTF
+# -----------------------------
+zcat "$INPUT_GTF" | awk -v pat="gene_name \"($PATTERN)\"" '
+    $0 ~ pat { print }
+' > "$OUTPUT_GTF"
+
+echo "Filtered GTF written to: $OUTPUT_GTF"
 
 
 
