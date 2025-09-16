@@ -61,31 +61,32 @@ PATTERN=$(echo "$TF_LIST" | tr ' ' '|')
 
 # echo "Filtered GTF written to: $OUTPUT_GTF"
 
-mkdir
 for Sample in "${TREATMENT[@]}"; do
     OUTPUT="$PWD/Gene_Annotation/merged_TFs_${Sample}_bound.bed"
-    > "$OUTPUT"
+    > "$OUTPUT"   # create/empty output file
 
-  echo "Processing sample: $Sample"
+    echo "Processing sample: $Sample"
 
-  for TF in "${TF_LIST[@]}"; do
-      BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
+    for TF in "${TF_LIST[@]}"; do
+        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
 
-      if [[-f "$BEDFILE" ]]; then
-          echo "Adding $TF to $OUTPUT"
-          cat "$BEDFILE" >> "$OUTPUT"
-      else
-          echo "Warning: $BEFILE not found, skipping $TF"
-      fi
-  done
+        if [[ -f "$BEDFILE" ]]; then
+            echo "Adding $TF to $OUTPUT"
+            cat "$BEDFILE" >> "$OUTPUT"
+        else
+            echo "Warning: $BEDFILE not found, skipping $TF"
+        fi
+    done
 
-# Sort and remove duplicate entries form this samples (as they might occur in several samples if multiple are merged)
-sort -k1,1 -k2,2n "$OUTPUT" | uniq > "${OUTPUT}"
-echo "Merged file written to ${OUTPUT}"
+    # Sort and remove duplicates safely (use temp file, then replace)
+    TMP="${OUTPUT%.bed}.tmp"
+    sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
 
+    echo "Merged file written to ${OUTPUT}"
 done
 
-# ============================== PLOTTracks ==============================
+
+# ============================== CONFIGURE VARIABLES for PLOTTrack ==============================
 REGIONS=$LOCI
 GTF="$INPUT_GTF"
 
@@ -99,7 +100,7 @@ else
     COLORS=${TRACK_COLORS}
 fi
 
-# ============================== MAIN LOOP ==============================
+# ============================== GENERATE PLOTTracks for each Sample ==============================
 Conditions=("GFP0h" "KrFo24h")
 
 for Sample in "${Conditions[@]}"; do

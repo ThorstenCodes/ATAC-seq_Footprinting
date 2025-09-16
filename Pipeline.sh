@@ -14,6 +14,22 @@ MODUS=$9 #Single or Differential
 CONTROL=${10:-}
 TREATMENT=${11:-}
 
+# Check if we should skip ATACorrect + FootprintScores
+if [[ "$MODUS" == "Differential" && -n "$CONTROL" && -n "$TREATMENT" ]]; then
+    CTRL_BW="${OUTDIR}/Footprint_Scores/${CONTROL}_footprints_score.bw"
+    TREAT_BW="${OUTDIR}/Footprint_Scores/${TREATMENT}_footprints_score.bw"
+
+    if [[ -f "$CTRL_BW" && -f "$TREAT_BW" ]]; then
+        echo "Found existing footprint scores for $CONTROL and $TREATMENT."
+        echo "Skipping ATACorrect and FootprintScores, jumping to BINDetect."
+        skip_preprocessing=true
+    else
+        skip_preprocessing=false
+    fi
+else
+    skip_preprocessing=false
+fi
+
 # Create output directory for ATACorrect
 mkdir -p "${OUTDIR}/ATACorrect_output"
 mkdir -p "${OUTDIR}/Footprint_Scores"
