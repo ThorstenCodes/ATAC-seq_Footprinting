@@ -12,7 +12,9 @@ SAMPLE_TABLE=$5
 PATH_TO_BIGWIGS=${6:-}
 NAMES_OF_BW_SAMPLE=${7:-}
 TRACK_COLORS=${8:-}
-CONDITONS=$9
+PATH_TO_TF_DIRECTORIES=$9
+TREATMENTS=$ # can contain multiple samplenames
+CONTROLS=$ # can contain multiple samplenames
 
 
 
@@ -49,14 +51,39 @@ fi
 PATTERN=$(echo "$TF_LIST" | tr ' ' '|')
 
 # -----------------------------
-# Filter GTF ### we dont need to filter GTF but probably remove the Chr or check and remove if it is there!!!!!
+# Filter GTF ### we dont need to filter GTF but probably remove the Chr or check and remove if it is there!!!!! Instead we use htere the output fo the BINDetect files and merge them to lists
 # -----------------------------
-zcat "$INPUT_GTF" | awk -v pat="gene_name \"($PATTERN)\"" '
-    $0 ~ pat { print }
-' > "$OUTPUT_GTF"
 
-echo "Filtered GTF written to: $OUTPUT_GTF"
 
+# zcat "$INPUT_GTF" | awk -v pat="gene_name \"($PATTERN)\"" '
+#     $0 ~ pat { print }
+# ' > "$OUTPUT_GTF"
+
+# echo "Filtered GTF written to: $OUTPUT_GTF"
+
+mkdir
+for Sample in "${TREATMENT[@]}"; do
+    OUTPUT="$PWD/Gene_Annotation/merged_TFs_${Sample}_bound.bed"
+    > "$OUTPUT"
+
+  echo "Processing sample: $Sample"
+
+  for TF in "${TF_LIST[@]}"; do
+      BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
+
+      if [[-f "$BEDFILE" ]]; then
+          echo "Adding $TF to $OUTPUT"
+          cat "$BEDFILE" >> "$OUTPUT"
+      else
+          echo "Warning: $BEFILE not found, skipping $TF"
+      fi
+  done
+
+# Sort and remove duplicate entries form this samples (as they might occur in several samples if multiple are merged)
+sort -k1,1 -k2,2n "$OUTPUT" | uniq > "${OUTPUT}"
+echo "Merged file written to ${OUTPUT}"
+
+done
 
 # ============================== PLOTTracks ==============================
 REGIONS=$LOCI
