@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-
 ### This pipeline will follow the first Pipeline to detect Differential Footprints between conditions or just Footprint analysis.
 ### If you are interested in the certain TFs and where they bind based on the footprints detected in a certain non-coding region or promoter region
 ### you can give this region here and see on a Plottrack where they are. Furthermore you can analyse if there is different binding detected for this TFs in the given region!
@@ -10,7 +8,8 @@
 #  Pipefail integration
 # ------------------------
 set -euo pipefail
-trap 'echo "❌ Error on line $LINENO. Exiting."; exit 1' ERR
+trap 'echo "❌ Error on line $LINENO. Exiting."; exit $?' ERR
+
 
 # ----------------
 # Input Variables
@@ -18,14 +17,13 @@ trap 'echo "❌ Error on line $LINENO. Exiting."; exit 1' ERR
 
 SPECIES=$1    # Human or Mouse
 TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
-
-LOCI=$4       # bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
-SAMPLE_TABLE=$5
-PATH_TO_BIGWIGS=${6:-}
-NAMES_OF_BW_SAMPLE=${7:-}
-TRACK_COLORS=${8:-}
-PATH_TO_TF_DIRECTORIES=$9
-SAMPLE_NAMES=$10 # not required when SAMPLE_TABLE is given but required if not
+LOCI=$3       # bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
+SAMPLE_TABLE=${4:-} # tab delimited file with no header: Column1:path-to-bigwig files, Column 2: Sample name, Column 3: Track Color
+PATH_TO_BIGWIGS=${5:-}  # PATH to bigwig you want to see in figure. Can be footprint score, can be a normalized bigwig peak file.
+NAMES_OF_BW_SAMPLE=${6:-} # often the same as SAMPLE_Name. Identifier for the Sample such as Sample_1, PK, ...
+TRACK_COLORS=${7:-} # Color of the peaks in the bigwig shown in the figure, requires same amount as Sample names and bigwig samples
+PATH_TO_TF_DIRECTORIES=$8 # Where are the BINDetect_outputs saved you want as input to vizualize the footprints in the genome
+SAMPLE_NAMES=($9) # not required when SAMPLE_TABLE is given but required if not
 
 
 
@@ -103,16 +101,20 @@ done
 
 # ============================== CONFIGURE VARIABLES for PLOTTrack ==============================
 REGIONS=$LOCI
-GTF="$INPUT_GTF"
 
 if [[ -f "$SAMPLE_TABLE" ]]; then
-    BIGWIGS=($(awk '{print $1}' "$SAMPLE_TABLE"))
-    LABELS=($(awk '{print $2}' "$SAMPLE_TABLE"))
-    COLORS=($(awk '{print $3}' "$SAMPLE_TABLE"))
+    BIGWIGS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $1}'))
+    LABELS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $2}'))
+    COLORS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $3}'))
 else
-    BIGWIGS="${PATH_TO_BIGWIGS}"
-    LABELS=${NAMES_OF_BW_SAMPLE}
-    COLORS=${TRACK_COLORS}
+    if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
+      echo "ERROR: Mismatch between number of bigwigs, labels, and colors"
+      exit 1
+    else
+      BIGWIGS=(${PATH_TO_BIGWIGS})
+      LABELS=(${NAMES_OF_BW_SAMPLE})
+      COLORS=(${TRACK_COLORS})
+    fi
 fi
 
 # ============================== GENERATE PLOTTracks for each Sample ==============================
