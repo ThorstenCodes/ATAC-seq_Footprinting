@@ -1,19 +1,31 @@
 #!/bin/bash
 
+
+
 ### This pipeline will follow the first Pipeline to detect Differential Footprints between conditions or just Footprint analysis.
 ### If you are interested in the certain TFs and where they bind based on the footprints detected in a certain non-coding region or promoter region
 ### you can give this region here and see on a Plottrack where they are. Furthermore you can analyse if there is different binding detected for this TFs in the given region!
 
+# ------------------------
+#  Pipefail integration
+# ------------------------
+set -euo pipefail
+trap 'echo "❌ Error on line $LINENO. Exiting."; exit 1' ERR
+
+# ----------------
+# Input Variables
+# ----------------
+
 SPECIES=$1    # Human or Mouse
 TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
-OUTPUT_GTF=$3 # Output GTF filename (must end with .gtf)
+
 LOCI=$4       # bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
 SAMPLE_TABLE=$5
 PATH_TO_BIGWIGS=${6:-}
 NAMES_OF_BW_SAMPLE=${7:-}
 TRACK_COLORS=${8:-}
 PATH_TO_TF_DIRECTORIES=$9
-SAMPLE_NAMES=$10
+SAMPLE_NAMES=$10 # not required when SAMPLE_TABLE is given but required if not
 
 
 
@@ -104,32 +116,44 @@ else
 fi
 
 # ============================== GENERATE PLOTTracks for each Sample ==============================
-for Sample in "${SAMPLE_NAMES[@]}"; do
-    TFBS="merged_TFs_${Sample}_bound.bed"
 
-    if [[ ! -f "$TFBS" ]]; then
-        echo "?? Warning: TFBS file not found for $Sample: $TFBS"
-        continue
-    fi
-
-    OUTDIR="PLOTTracks/${Sample}"
+run_plottracks() {
+    local sample=$1
+    local TFBS="$PWD/Gene_Annotation/merged_TFs_${sample}_bound.bed"
+    local OUTDIR="PLOTTracks/${sample}"
     mkdir -p "$OUTDIR"
 
-    echo "Running TOBIAS PlotTracks for $Sample..."
+    echo "Running TOBIAS PlotTracks for ${sample}..."
 
     TOBIAS PlotTracks \
         --bigwigs "${BIGWIGS[@]}" \
         --regions "$REGIONS" \
         --sites "$TFBS" \
-        --gtf "$GTF" \
+        --gtf "$INPUT_GTF" \
         --labels "${LABELS[@]}" \
         --colors "${COLORS[@]}" \
         --width 15 \
         --max-transcripts 1 \
         --outdir "$OUTDIR"
 
-    echo "PlotTracks completed for $Sample ? $OUTDIR"
-done
+    echo "PlotTracks completed for ${sample} → results in ${OUTDIR}"
+}
+
+if [[ -f "$SAMPLE_TABLE" ]]; then
+    for sample in $(awk '{print $2}' "$SAMPLE_TABLE"); do
+        run_plottracks "$sample"
+    done
+elif [[ -n "${SAMPLE_NAMES:-}" ]]; then
+    for sample in "${SAMPLE_NAMES[@]}"; do
+        run_plottracks "$sample"
+    done
+else
+    echo "Error: Provide either SAMPLE_TABLE (with sample names in column 2) or SAMPLE_NAMES array."
+    exit 1
+fi
+
+
+
 
 
 # Create a regex pattern like which introduces OR (|} betweent the gene names.This allows awk to filter for each gene name in the list. The pattern looks like this in the end: e.g. (IRF1|IRF2|...)
