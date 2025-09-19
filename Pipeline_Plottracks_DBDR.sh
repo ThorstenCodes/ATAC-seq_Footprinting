@@ -8,7 +8,7 @@
 #  Pipefail integration
 # ------------------------
 set -euo pipefail
-trap 'echo "❌ Error on line $LINENO. Exiting."; exit $?' ERR
+trap 'echo "Error on line $LINENO. Exiting."; exit $?' ERR
 
 
 # ----------------
@@ -17,7 +17,7 @@ trap 'echo "❌ Error on line $LINENO. Exiting."; exit $?' ERR
 
 SPECIES=$1    # Human or Mouse
 TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
-LOCI=$3       # bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
+LOCI=$3       # path to bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
 SAMPLE_TABLE=${4:-} # tab delimited file with no header: Column1:path-to-bigwig files, Column 2: Sample name, Column 3: Track Color
 PATH_TO_BIGWIGS=${5:-}  # PATH to bigwig you want to see in figure. Can be footprint score, can be a normalized bigwig peak file.
 NAMES_OF_BW_SAMPLE=${6:-} # often the same as SAMPLE_Name. Identifier for the Sample such as Sample_1, PK, ...
@@ -34,30 +34,49 @@ mkdir -p "$PWD/Gene_Annotation/"
 # ----------------------------------------------------------------------
 
 if [[ "$SPECIES" == "Human" ]]; then
-    wget -nc -P "$PWD/Gene_Annotation/" \
-        https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.basic.annotation.gtf.gz
     INPUT_GTF="$PWD/Gene_Annotation/gencode.v49.basic.annotation.gtf.gz"
+    if [ -f "$INPUT_GTF" ]; then
+        echo "Human GTF already exists, skipping download."
+    else
+        wget -nc -P "$PWD/Gene_Annotation/" \
+            https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.basic.annotation.gtf.gz
+    fi
 elif [[ "$SPECIES" == "Mouse" ]]; then
-    wget -nc -P "$PWD/Gene_Annotation/" \
-        https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M38/gencode.vM38.basic.annotation.gtf.gz
     INPUT_GTF="$PWD/Gene_Annotation/gencode.vM38.basic.annotation.gtf.gz"
+    if [ -f "$INPUT_GTF" ]; then
+        echo "Mouse GTF already exists, skipping download."
+    else
+        wget -nc -P "$PWD/Gene_Annotation/" \
+            https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M38/gencode.vM38.basic.annotation.gtf.gz
+    fi
 else
-    echo 'Error: Species must be "Mouse" or "Human" as argument.'
+    echo 'Error: Species must be "Mouse" or "Human".'
     exit 1
 fi
 
+# Now INPUT_GTF is always defined
+echo "Using GTF: $INPUT_GTF"
+
 # --- Normalize chromosome names (remove "chr" prefix if present) ---
-first_chr=$(zcat "$INPUT_GTF" | awk '$1 !~ /^#/ {print $1; exit}')
+
+# Since the output will be the chr1 (which after stripping is 1 only) we need to add the OR operator and true otherwise pipefail thinks it is an error code 1, although its literally the output!!!
+first_chr=$(gunzip -c "$INPUT_GTF" | awk '$1 !~ /^#/ {print $1; exit}' || true)
+
+if [[ -z "$first_chr" ]]; then
+    echo "Error: Could not detect first chromosome from $INPUT_GTF"
+    exit 1
+fi
+
 
 if [[ "$first_chr" == chr* ]]; then
-    echo "Detected 'chr' prefix in chromosomes → stripping it"
-    zcat "$INPUT_GTF" | sed 's/^chr//' > "${INPUT_GTF%.gz}.nochr.gtf"
-    INPUT_GTF="${INPUT_GTF%.gz}.nochr.gtf"
+    echo "Detected 'chr' prefix in chromosomes → stripping it (overwriting $INPUT_GTF)"
+    tmpfile=$(mktemp)
+    gunzip -c "$INPUT_GTF" | sed 's/^chr//' | gzip > "$tmpfile"
+    mv "$tmpfile" "$INPUT_GTF"
 else
-    echo "Chromosomes already without 'chr' prefix"
-    gunzip -c "$INPUT_GTF" > "${INPUT_GTF%.gz}"
-    INPUT_GTF="${INPUT_GTF%.gz}"
+    echo "Chromosomes already without 'chr' prefix → ensuring compressed file"
 fi
+
 
 
 # -----------------------------
@@ -102,20 +121,44 @@ done
 # ============================== CONFIGURE VARIABLES for PLOTTrack ==============================
 REGIONS=$LOCI
 
+# -------------------------
+# Initialize arrays
+# -------------------------
+BIGWIGS=()
+LABELS=()
+COLORS=()
+
+# -------------------------
+# Fill arrays
+# -------------------------
 if [[ -f "$SAMPLE_TABLE" ]]; then
-    BIGWIGS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $1}'))
-    LABELS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $2}'))
-    COLORS=($(awk 'NR>1 && $1!~/^#/' "$SAMPLE_TABLE" | awk '{print $3}'))
+    echo "Loading BIGWIGS, LABELS, COLORS from sample table: $SAMPLE_TABLE"
+
+    # Skip header lines starting with '#' and take columns 1-3
+    mapfile -t BIGWIGS < <(awk 'NR>1 && $1!~/^#/{print $1}' "$SAMPLE_TABLE")
+    mapfile -t LABELS  < <(awk 'NR>1 && $1!~/^#/{print $2}' "$SAMPLE_TABLE")
+    mapfile -t COLORS  < <(awk 'NR>1 && $1!~/^#/{print $3}' "$SAMPLE_TABLE")
+
+elif [[ -n "$PATH_TO_BIGWIGS" ]] && [[ -n "$NAMES_OF_BW_SAMPLE" ]] && [[ -n "$TRACK_COLORS" ]]; then
+    echo "Loading BIGWIGS, LABELS, COLORS from provided arguments"
+    BIGWIGS=($PATH_TO_BIGWIGS)
+    LABELS=($NAMES_OF_BW_SAMPLE)
+    COLORS=($TRACK_COLORS)
 else
-    if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
-      echo "ERROR: Mismatch between number of bigwigs, labels, and colors"
-      exit 1
-    else
-      BIGWIGS=(${PATH_TO_BIGWIGS})
-      LABELS=(${NAMES_OF_BW_SAMPLE})
-      COLORS=(${TRACK_COLORS})
-    fi
+    echo "ERROR: No valid sample table or arrays provided for BIGWIGS, LABELS, COLORS"
+    exit 1
 fi
+
+# -------------------------
+# Check consistency
+# -------------------------
+if [[ ${#BIGWIGS[@]} -ne ${#LABELS[@]} ]] || [[ ${#BIGWIGS[@]} -ne ${#COLORS[@]} ]]; then
+    echo "ERROR: Number of BIGWIGS (${#BIGWIGS[@]}), LABELS (${#LABELS[@]}), and COLORS (${#COLORS[@]}) do not match"
+    exit 1
+fi
+
+echo "Loaded ${#BIGWIGS[@]} samples successfully."
+
 
 # ============================== GENERATE PLOTTracks for each Sample ==============================
 
