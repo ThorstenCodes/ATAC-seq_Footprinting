@@ -18,41 +18,62 @@ trap 'echo "Error on line $LINENO. Exiting."; exit $?' ERR
 SPECIES=$1    # Human or Mouse
 TF_INPUT=$2   # Either: "IRF1 IRF2 ..." OR path to file (tfs.txt)
 LOCI=$3       # path to bed.file format with regions chr, start, end, name_of_peak, other additional columns, one line per Locus
-SAMPLE_TABLE=${4:-} # tab delimited file with no header: Column1:path-to-bigwig files, Column 2: Sample name, Column 3: Track Color
+SAMPLE_TABLE=${4:-} # tab delimited .txt file : Column1:path-to-bigwig files, Column 2: Sample name, Column 3: Track Color, no path to the file, only filename.
 PATH_TO_BIGWIGS=${5:-}  # PATH to bigwig you want to see in figure. Can be footprint score, can be a normalized bigwig peak file.
 NAMES_OF_BW_SAMPLE=${6:-} # often the same as SAMPLE_Name. Identifier for the Sample such as Sample_1, PK, ...
 TRACK_COLORS=${7:-} # Color of the peaks in the bigwig shown in the figure, requires same amount as Sample names and bigwig samples
-PATH_TO_TF_DIRECTORIES=$8 # Where are the BINDetect_outputs saved you want as input to vizualize the footprints in the genome
+PATH_TO_TF_DIRECTORIES=$8 # Where are the BINDetect_outputs saved you want as input to vizualize the footprints in the genome e.g /media/group/project/Footprinting/...
 SAMPLE_NAMES=($9) # not required when SAMPLE_TABLE is given but required if not
 
 
 
 mkdir -p "$PWD/Gene_Annotation/"
+mkdir -p "$PWD/selected_TF_Footprints"
+LOCI=$(echo "$LOCI" | sed "s/r\$//")
+
+# ----------------------------------------------------------------------
+# Download GTF depending on species and remove Chr if written with Chr
+# ----------------------------------------------------------------------
 
 # ----------------------------------------------------------------------
 # Download GTF depending on species and remove Chr if written with Chr
 # ----------------------------------------------------------------------
 
 if [[ "$SPECIES" == "Human" ]]; then
-    INPUT_GTF="$PWD/Gene_Annotation/gencode.v49.basic.annotation.gtf.gz"
-    if [ -f "$INPUT_GTF" ]; then
-        echo "Human GTF already exists, skipping download."
+    INPUT_GTF_GZ="$PWD/Gene_Annotation/gencode.v49.basic.annotation.gtf.gz"
+    INPUT_GTF="$PWD/Gene_Annotation/gencode.v49.basic.annotation.gtf"  # uncompressed
+
+    if [[ ! -f "$INPUT_GTF" ]]; then
+        if [[ ! -f "$INPUT_GTF_GZ" ]]; then
+            wget -nc -P "$PWD/Gene_Annotation/" \
+                https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.basic.annotation.gtf.gz
+        fi
+        echo "Unzipping Human GTF..."
+        gunzip -c "$INPUT_GTF_GZ" | sed 's/^chr//' > "$INPUT_GTF"
     else
-        wget -nc -P "$PWD/Gene_Annotation/" \
-            https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_human/release_49/gencode.v49.basic.annotation.gtf.gz
+        echo "Human GTF already exists (uncompressed)."
     fi
+
 elif [[ "$SPECIES" == "Mouse" ]]; then
-    INPUT_GTF="$PWD/Gene_Annotation/gencode.vM38.basic.annotation.gtf.gz"
-    if [ -f "$INPUT_GTF" ]; then
-        echo "Mouse GTF already exists, skipping download."
+    INPUT_GTF_GZ="$PWD/Gene_Annotation/gencode.vM38.basic.annotation.gtf.gz"
+    INPUT_GTF="$PWD/Gene_Annotation/gencode.vM38.basic.annotation.gtf"  # uncompressed
+
+    if [[ ! -f "$INPUT_GTF" ]]; then
+        if [[ ! -f "$INPUT_GTF_GZ" ]]; then
+            wget -nc -P "$PWD/Gene_Annotation/" \
+                https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M38/gencode.vM38.basic.annotation.gtf.gz
+        fi
+        echo "Unzipping Mouse GTF..."
+        gunzip -c "$INPUT_GTF_GZ" | sed 's/^chr//' > "$INPUT_GTF"
     else
-        wget -nc -P "$PWD/Gene_Annotation/" \
-            https://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M38/gencode.vM38.basic.annotation.gtf.gz
+        echo "Mouse GTF already exists (uncompressed)."
     fi
+
 else
     echo 'Error: Species must be "Mouse" or "Human".'
     exit 1
 fi
+
 
 # Now INPUT_GTF is always defined
 echo "Using GTF: $INPUT_GTF"
@@ -60,7 +81,7 @@ echo "Using GTF: $INPUT_GTF"
 # --- Normalize chromosome names (remove "chr" prefix if present) ---
 
 # Since the output will be the chr1 (which after stripping is 1 only) we need to add the OR operator and true otherwise pipefail thinks it is an error code 1, although its literally the output!!!
-first_chr=$(gunzip -c "$INPUT_GTF" | awk '$1 !~ /^#/ {print $1; exit}' || true)
+first_chr=$(awk '$1 !~ /^#/ {print $1; exit}' "Gene_Annotation/$INPUT_GTF" || true)
 
 if [[ -z "$first_chr" ]]; then
     echo "Error: Could not detect first chromosome from $INPUT_GTF"
@@ -71,9 +92,10 @@ fi
 if [[ "$first_chr" == chr* ]]; then
     echo "Detected 'chr' prefix in chromosomes → stripping it (overwriting $INPUT_GTF)"
     tmpfile=$(mktemp)
-    gunzip -c "$INPUT_GTF" | sed 's/^chr//' | gzip > "$tmpfile"
+    gunzip -c "$INPUT_GTF" | sed 's/^chr//' > "$tmpfile"
     mv "$tmpfile" "$INPUT_GTF"
 else
+  tmpfile=$(mktemp)
     echo "Chromosomes already without 'chr' prefix → ensuring compressed file"
 fi
 
@@ -82,40 +104,14 @@ fi
 # -----------------------------
 # Parse TF list (file or inline)
 # -----------------------------
+
 if [[ -f "$TF_INPUT" ]]; then
-    # Case: file provided → read one gene per line (or tab/space)
-    TF_LIST=$(tr '\t' ' ' < "$TF_INPUT" | tr '\n' ' ')
+    # File with TF names → split into array
+    mapfile -t TF_LIST < <(tr -s ' \t' '\n' < "$TF_INPUT")
 else
-    # Case: quoted string list
-    TF_LIST=$TF_INPUT
+    # Inline string → split on spaces into array
+    read -r -a TF_LIST <<< "$TF_INPUT"
 fi
-
-# --------------------------------------------------------------------------
-# Merge TF.bed files and remove their duplicates if different conditions
-# -------------------------------------------------------------------------
-for Sample in "${SAMPLE_NAMES[@]}"; do
-    OUTPUT="$PWD/Gene_Annotation/merged_TFs_${Sample}_bound.bed"
-    > "$OUTPUT"   # create/empty output file
-
-    echo "Processing sample: $Sample"
-
-    for TF in "${TF_LIST[@]}"; do
-        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
-
-        if [[ -f "$BEDFILE" ]]; then
-            echo "Adding $TF to $OUTPUT"
-            cat "$BEDFILE" >> "$OUTPUT"
-        else
-            echo "Warning: $BEDFILE not found, skipping $TF"
-        fi
-    done
-
-    # Sort and remove duplicates safely (use temp file, then replace)
-    TMP="${OUTPUT%.bed}.tmp"
-    sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
-
-    echo "Merged file written to ${OUTPUT}"
-done
 
 
 # ============================== CONFIGURE VARIABLES for PLOTTrack ==============================
@@ -135,9 +131,11 @@ if [[ -f "$SAMPLE_TABLE" ]]; then
     echo "Loading BIGWIGS, LABELS, COLORS from sample table: $SAMPLE_TABLE"
 
     # Skip header lines starting with '#' and take columns 1-3
-    mapfile -t BIGWIGS < <(awk 'NR>1 && $1!~/^#/{print $1}' "$SAMPLE_TABLE")
-    mapfile -t LABELS  < <(awk 'NR>1 && $1!~/^#/{print $2}' "$SAMPLE_TABLE")
-    mapfile -t COLORS  < <(awk 'NR>1 && $1!~/^#/{print $3}' "$SAMPLE_TABLE")
+    mapfile -t BIGWIGS < <(awk 'NR>1 && $1!~/^#/ && NF>=3 {print $1}' "$SAMPLE_TABLE")
+    mapfile -t LABELS  < <(awk 'NR>1 && $1!~/^#/ && NF>=3 {print $2}' "$SAMPLE_TABLE")
+    mapfile -t COLORS < <(awk 'NR>1 && $1!~/^#/ && NF>=3 {gsub("\r","",$3); print $3}' "$SAMPLE_TABLE")
+
+
 
 elif [[ -n "$PATH_TO_BIGWIGS" ]] && [[ -n "$NAMES_OF_BW_SAMPLE" ]] && [[ -n "$TRACK_COLORS" ]]; then
     echo "Loading BIGWIGS, LABELS, COLORS from provided arguments"
@@ -160,11 +158,52 @@ fi
 echo "Loaded ${#BIGWIGS[@]} samples successfully."
 
 
+# --------------------------------------------------------------------------
+# Merge TF.bed files and remove their duplicates if different conditions
+# -------------------------------------------------------------------------
+
+if [[ -f "$SAMPLE_TABLE" ]]; then
+    echo "Reading sample names from table: $SAMPLE_TABLE"
+    # read sample names from column 2, skipping header and comments
+    mapfile -t SAMPLE_NAMES < <(awk 'NR>1 && $1!~/^#/ && NF>=3 {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE")
+    echo $SAMPLE_NAMES
+else
+    echo "Using SAMPLE_NAMES directly: ${SAMPLE_NAMES[*]}"
+    echo $SAMPLE_NAMES
+fi
+
+
+# Common loop (runs in both cases)
+for Sample in "${SAMPLE_NAMES[@]}"; do
+    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_bound.bed"
+    > "$OUTPUT"   # create/empty output file
+
+    echo "Processing sample: $Sample"
+
+    for TF in "${TF_LIST[@]}"; do
+        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
+
+        if [[ -f "$BEDFILE" ]]; then
+            echo "Adding $TF to $OUTPUT"
+            cat "$BEDFILE" >> "$OUTPUT"
+        else
+            echo "Warning: $BEDFILE not found, skipping $TF"
+        fi
+    done
+
+    # Sort and remove duplicates safely
+    TMP="${OUTPUT%.bed}.tmp"
+    sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
+
+    echo "Merged file written to ${OUTPUT}"
+done
+
+
 # ============================== GENERATE PLOTTracks for each Sample ==============================
 
 run_plottracks() {
     local sample=$1
-    local TFBS="$PWD/Gene_Annotation/merged_TFs_${sample}_bound.bed"
+    local TFBS="$PWD/selected_TF_Footprints/merged_TFs_${sample}_bound.bed"
     local OUTDIR="PLOTTracks/${sample}"
     mkdir -p "$OUTDIR"
 
@@ -185,7 +224,8 @@ run_plottracks() {
 }
 
 if [[ -f "$SAMPLE_TABLE" ]]; then
-    for sample in $(awk '{print $2}' "$SAMPLE_TABLE"); do
+    # Column 2 = sample name, skip header (NR>1) and comment lines (#)
+    for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
         run_plottracks "$sample"
     done
 elif [[ -n "${SAMPLE_NAMES:-}" ]]; then
