@@ -236,21 +236,3 @@ else
     echo "Error: Provide either SAMPLE_TABLE (with sample names in column 2) or SAMPLE_NAMES array."
     exit 1
 fi
-
-
-
-
-
-# Create a regex pattern like which introduces OR (|} betweent the gene names.This allows awk to filter for each gene name in the list. The pattern looks like this in the end: e.g. (IRF1|IRF2|...)
-# PATTERN=$(echo "$TF_LIST" | tr ' ' '|')
-
-# -----------------------------
-# Filter GTF ### we dont need to filter GTF but probably remove the Chr or check and remove if it is there!!!!! Instead we use htere the output fo the BINDetect files and merge them to lists
-# -----------------------------
-
-
-# zcat "$INPUT_GTF" | awk -v pat="gene_name \"($PATTERN)\"" '
-#     $0 ~ pat { print }
-# ' > "$OUTPUT_GTF"
-
-# echo "Filtered GTF written to: $OUTPUT_GTF"
