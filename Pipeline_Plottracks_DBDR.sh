@@ -24,11 +24,13 @@ NAMES_OF_BW_SAMPLE=${6:-} # often the same as SAMPLE_Name. Identifier for the Sa
 TRACK_COLORS=${7:-} # Color of the peaks in the bigwig shown in the figure, requires same amount as Sample names and bigwig samples
 PATH_TO_TF_DIRECTORIES=$8 # Where are the BINDetect_outputs saved you want as input to vizualize the footprints in the genome e.g /media/group/project/Footprinting/...
 SAMPLE_NAMES=($9) # not required when SAMPLE_TABLE is given but required if not
+CONTROL=${10:-}
 
 
 
 mkdir -p "$PWD/Gene_Annotation/"
 mkdir -p "$PWD/selected_TF_Footprints"
+mkdir -p "$PWD/Differential_Motifs"
 LOCI=$(echo "$LOCI" | sed "s/r\$//")
 
 # ----------------------------------------------------------------------
@@ -199,7 +201,9 @@ for Sample in "${SAMPLE_NAMES[@]}"; do
 done
 
 
-# ============================== GENERATE PLOTTracks for each Sample ==============================
+# --------------------------------------------------------------------------
+# GENERATE PLOTTracks for each Sample and Loci
+# -------------------------------------------------------------------------
 
 run_plottracks() {
     local sample=$1
@@ -236,3 +240,54 @@ else
     echo "Error: Provide either SAMPLE_TABLE (with sample names in column 2) or SAMPLE_NAMES array."
     exit 1
 fi
+
+# --------------------------------------------------------------------------
+#  Differential Motifs of given TFs as Table output
+# -------------------------------------------------------------------------
+
+
+
+
+run_DiMo() {
+  local sample=$1
+  local control=$2
+  local PATH_TO_FILES=$PWD/selected_TF_Footprints/merged_TFs_${Sample}_bound.bed
+  local OUTDIR="Differential_Motifs/$Sample"
+
+# Iterate over all conditions (excluding GFP0h)
+for file in "$PATH_TO_FILES"/*_bound.bed; do
+    echo "Processing comparison for: $sample"
+
+    # Define output files for overlapping and non-overlapping regions
+    OVERLAP_FILE="${OUTDIR}/${sample}_overlap_with_GFP0h.bed"
+    NON_OVERLAP_FILE="${OUTDIR}/${sample}_non_overlap_with_GFP0h.bed"
+
+    # Get the overlapping regions between GFP0h and the current condition
+    bedtools intersect -a "$control" -b "$sample" -wa -u > "$OVERLAP_FILE"
+    echo "Overlapping regions saved to $OVERLAP_FILE"
+
+    # Get regions from the current condition that do not overlap with GFP24h
+    bedtools intersect -a "$sample" -b "$control" -wa -v > "$NON_OVERLAP_FILE"
+    echo "Non-overlapping regions saved to $NON_OVERLAP_FILE"
+done
+
+echo "Comparison completed. Results saved in: $OUTDIR"
+}
+
+if [[ -n $CONTROL ]]; then
+  for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
+    if [[ $sample != $CONTROL ]]; then
+        run_DiMo "$sample" "$CONTROL"
+    else
+        continue
+    fi
+  done
+else
+  echo "Differential Motif Analysis is not run as no Control condition was defined!"
+  exit 1
+fi
+
+
+
+
+#### we also need to add the motifsearch for no footrprints but only motifs with p-value
