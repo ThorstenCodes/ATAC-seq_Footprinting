@@ -4,6 +4,46 @@
 ### If you are interested in the certain TFs and where they bind based on the footprints detected in a certain non-coding region or promoter region
 ### you can give this region here and see on a Plottrack where they are. Furthermore you can analyse if there is different binding detected for this TFs in the given region!
 
+#!/bin/bash
+
+# ------------------------
+# Check for help argument
+# ------------------------
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+    cat << EOF
+Usage: $0 SPECIES TF_INPUT LOCI [SAMPLE_TABLE] [PATH_TO_BIGWIGS] [NAMES_OF_BW_SAMPLE] [TRACK_COLORS] PATH_TO_TF_DIRECTORIES SAMPLE_NAMES [CONTROL] [UBA]
+
+Arguments:
+  SPECIES                 "Human" or "Mouse"
+  TF_INPUT                Either a space-separated list of TFs (e.g., "IRF1 IRF2") or a path to a text file with TF names
+  LOCI                    BED file (in same directory as pipeline!) with regions (Chr, Start, End, additional columns)
+  SAMPLE_TABLE            Optional: tab-delimited text file with columns:
+                            1) Path_to_bigwig shown in the Plottrack
+                            2) Sample Name (requires same name as in TOBIAS Pipeline analysis (see first Pipeline)!!)
+                            3) Color (Matplotlib)
+  PATH_TO_BIGWIGS         Optional: path(s) to bigwig files (space-separated)
+  NAMES_OF_BW_SAMPLE       Optional:  Sample Name (space-separated)
+  TRACK_COLORS             Optional: colors for the tracks (space-separated), same order as NAMES_OF_BW_SAMPLE
+  PATH_TO_TF_DIRECTORIES   Path to directory containing BINDetect outputs
+  SAMPLE_NAMES             Array of sample names (required if SAMPLE_TABLE is not provided) to label tracks in Plottrack, if not given write as ""
+  CONTROL                  Optional: control sample for differential motif comparison, if not given write as ""
+  UBA                      bound, unbound, or all (default behavior for merging footprints)
+
+Description:
+  This pipeline performs footprint analysis and generates:
+    - Merged TF BED files per sample or across all samples
+    - TOBIAS PlotTracks for visualization of footprints in the genome
+    - Differential motif analysis (if UBA='bound' and CONTROL is provided)
+
+Examples:
+  $0 Human "IRF1 IRF2" loci.bed sample_table.txt "" "" "" /path/to/TF_outputs "Sample1 Sample2" Control bound
+  $0 Mouse tfs.txt loci.bed "" "/path/to/bw/*.bw" "Sample1 Sample2" "red blue" /path/to/TF_outputs "Sample1 Sample2" "" all
+
+EOF
+    exit 0
+fi
+
+
 # ------------------------
 #  Pipefail integration
 # ------------------------
@@ -342,6 +382,3 @@ if [[ $UBA == "bound" ]]; then
 else
     echo "Differential Motif Analysis is only run for UBA='bound'. Current UBA='$UBA'."
 fi
-
-
-#### we also need to add the motifsearch for no footrprints but only motifs with p-value
