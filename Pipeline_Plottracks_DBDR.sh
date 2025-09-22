@@ -31,7 +31,6 @@ UBA=${11:-} # was TF found as bound, unbound or all
 
 mkdir -p "$PWD/Gene_Annotation/"
 mkdir -p "$PWD/selected_TF_Footprints"
-mkdir -p "$PWD/Differential_Motifs"
 LOCI=$(echo "$LOCI" | sed "s/r\$//")
 
 # ----------------------------------------------------------------------
@@ -84,7 +83,7 @@ echo "Using GTF: $INPUT_GTF"
 # --- Normalize chromosome names (remove "chr" prefix if present) ---
 
 # Since the output will be the chr1 (which after stripping is 1 only) we need to add the OR operator and true otherwise pipefail thinks it is an error code 1, although its literally the output!!!
-first_chr=$(awk '$1 !~ /^#/ {print $1; exit}' "Gene_Annotation/$INPUT_GTF" || true)
+first_chr=$(awk '$1 !~ /^#/ {print $1; exit}' "$INPUT_GTF" || true)
 
 if [[ -z "$first_chr" ]]; then
     echo "Error: Could not detect first chromosome from $INPUT_GTF"
@@ -169,23 +168,43 @@ if [[ -f "$SAMPLE_TABLE" ]]; then
     echo "Reading sample names from table: $SAMPLE_TABLE"
     # read sample names from column 2, skipping header and comments
     mapfile -t SAMPLE_NAMES < <(awk 'NR>1 && $1!~/^#/ && NF>=3 {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE")
-    echo $SAMPLE_NAMES
+    echo "SAMPLE_NAMES: ${SAMPLE_NAMES[*]}"
 else
     echo "Using SAMPLE_NAMES directly: ${SAMPLE_NAMES[*]}"
-    echo $SAMPLE_NAMES
+    echo "SAMPLE_NAMES: ${SAMPLE_NAMES[*]}"
 fi
 
+if [[ $UBA == "bound" || $UBA == "unbound" ]]; then
+    # per-sample merging
+    for Sample in "${SAMPLE_NAMES[@]}"; do
+        OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_${UBA}.bed"
+        > "$OUTPUT"
+        echo "Processing sample: $Sample"
 
-# Common loop (runs in both cases)
-for Sample in "${SAMPLE_NAMES[@]}"; do
-    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_${UBA}.bed"
-    > "$OUTPUT"   # create/empty output file
+        for TF in "${TF_LIST[@]}"; do
+            BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_${UBA}.bed"
+            if [[ -f "$BEDFILE" ]]; then
+                echo "Adding $TF to $OUTPUT"
+                cat "$BEDFILE" >> "$OUTPUT"
+            else
+                echo "Warning: $BEDFILE not found, skipping $TF"
+            fi
+        done
 
-    echo "Processing sample: $Sample"
+        # Sort and remove duplicates per sample
+        TMP="${OUTPUT%.bed}.tmp"
+        sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
+        echo "Merged file written to ${OUTPUT}"
+    done
+
+elif [[ $UBA == "all" ]]; then
+    # single merged file for all TFs, no per-sample dependency
+    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_all.bed"
+    > "$OUTPUT"
+    echo "Merging Footprints for TFs found in all samples"
 
     for TF in "${TF_LIST[@]}"; do
-        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_${UBA}.bed"
-
+        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_all.bed"
         if [[ -f "$BEDFILE" ]]; then
             echo "Adding $TF to $OUTPUT"
             cat "$BEDFILE" >> "$OUTPUT"
@@ -194,12 +213,17 @@ for Sample in "${SAMPLE_NAMES[@]}"; do
         fi
     done
 
-    # Sort and remove duplicates safely
+    # Sort and remove duplicates for the single all-file
     TMP="${OUTPUT%.bed}.tmp"
     sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
-
     echo "Merged file written to ${OUTPUT}"
-done
+
+else
+    echo "UBA variable needs to be bound, unbound or all !!!"
+    exit 1
+fi
+
+
 
 
 # --------------------------------------------------------------------------
@@ -225,67 +249,99 @@ run_plottracks() {
         --max-transcripts 1 \
         --outdir "$OUTDIR"
 
-    echo "PlotTracks completed for ${sample} → results in ${OUTDIR}"
+    echo "PlotTracks completed for ${sample}. Results in ${OUTDIR}"
 }
 
-if [[ -f "$SAMPLE_TABLE" ]]; then
-    # Column 2 = sample name, skip header (NR>1) and comment lines (#)
-    for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
-        run_plottracks "$sample"
-    done
-elif [[ -n "${SAMPLE_NAMES:-}" ]]; then
-    for sample in "${SAMPLE_NAMES[@]}"; do
-        run_plottracks "$sample"
-    done
+if [[ $UBA == "bound" || $UBA == "unbound" ]]; then
+    # Run PlotTracks for each sample
+    if [[ -f "$SAMPLE_TABLE" ]]; then
+        for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
+            run_plottracks "$sample"
+        done
+    elif [[ -n "${SAMPLE_NAMES:-}" ]]; then
+        for sample in "${SAMPLE_NAMES[@]}"; do
+            run_plottracks "$sample"
+        done
+    else
+        echo "Error: Provide either SAMPLE_TABLE or SAMPLE_NAMES array."
+        exit 1
+    fi
+
+elif [[ $UBA == "all" ]]; then
+    # Run PlotTracks once using the first sample
+    if [[ -f "$SAMPLE_TABLE" ]]; then
+        first_sample=$(awk 'NR>1 && $1!~/^#/ {print $2; exit}' "$SAMPLE_TABLE")
+    elif [[ -n "${SAMPLE_NAMES:-}" ]]; then
+        first_sample="${SAMPLE_NAMES[0]}"
+    else
+        echo "Error: Provide either SAMPLE_TABLE or SAMPLE_NAMES array."
+        exit 1
+    fi
+
+    echo "UBA=all → running PlotTracks once using sample: $first_sample"
+    run_plottracks "$first_sample"
+
 else
-    echo "Error: Provide either SAMPLE_TABLE (with sample names in column 2) or SAMPLE_NAMES array."
+    echo "UBA variable must be bound, unbound or all !!!"
     exit 1
 fi
+
+
+
 
 # --------------------------------------------------------------------------
 #  Differential Motifs of given TFs as Table output
 # -------------------------------------------------------------------------
 
 run_DiMo() {
-  local sample=$1
-  local control=$2
-  local PATH_TO_FILES=$PWD/selected_TF_Footprints/
-  local OUTDIR="Differential_Motifs/${sample}_vs_${control}"
+    local sample=$1
+    local control=$2
+    local PATH_TO_FILES=$PWD/selected_TF_Footprints/
+    local OUTDIR="Differential_Motifs/${sample}_vs_${control}"
 
-# Iterate over all conditions (excluding GFP0h)
-for file in "$PATH_TO_FILES"/*_$UBA.bed; do # hier müsste man anpassen!
-    echo "Processing comparison for: $sample vs $control"
+    mkdir -p "$OUTDIR"
 
-    # Define output files for overlapping and non-overlapping regions
-    OVERLAP_FILE="${OUTDIR}/${sample}_overlap_with_${control}.bed"
-    NON_OVERLAP_FILE="${OUTDIR}/${sample}_non_overlap_with_${control}.bed"
+    # Define merged BED files for sample and control
+    local SAMPLE_BED="$PATH_TO_FILES/merged_TFs_${sample}_bound.bed"
+    local CONTROL_BED="$PATH_TO_FILES/merged_TFs_${control}_bound.bed"
 
-    # Get the overlapping regions between GFP0h and the current condition
-    bedtools intersect -a "$control" -b "$sample" -wa -u > "$OVERLAP_FILE"
+    # Check if BED files exist
+    if [[ ! -f "$SAMPLE_BED" || ! -f "$CONTROL_BED" ]]; then
+        echo "Error: BED file(s) missing!"
+        echo "SAMPLE_BED=$SAMPLE_BED"
+        echo "CONTROL_BED=$CONTROL_BED"
+        return 1
+    fi
+
+    # Define output files
+    local OVERLAP_FILE="${OUTDIR}/${sample}_overlap_with_${control}.bed"
+    local NON_OVERLAP_FILE="${OUTDIR}/${sample}_non_overlap_with_${control}.bed"
+
+    # Run bedtools
+    bedtools intersect -a "$CONTROL_BED" -b "$SAMPLE_BED" -wa -u > "$OVERLAP_FILE"
     echo "Overlapping regions saved to $OVERLAP_FILE"
 
-    # Get regions from the current condition that do not overlap with GFP24h
-    bedtools intersect -a "$sample" -b "$control" -wa -v > "$NON_OVERLAP_FILE"
+    bedtools intersect -a "$SAMPLE_BED" -b "$CONTROL_BED" -wa -v > "$NON_OVERLAP_FILE"
     echo "Non-overlapping regions saved to $NON_OVERLAP_FILE"
-done
 
-echo "Comparison completed. Results saved in: $OUTDIR"
+    echo "Comparison completed. Results saved in: $OUTDIR"
 }
 
-if [[ -n $CONTROL ]]; then
-  for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
-    if [[ $sample != $CONTROL ]]; then
-        run_DiMo "$sample" "$CONTROL"
+# Only run differential motif analysis if UBA="bound" AND CONTROL is defined
+if [[ $UBA == "bound" ]]; then
+    if [[ -n $CONTROL ]]; then
+        for sample in $(awk 'NR>1 && $1!~/^#/ {if(!seen[$2]++){print $2}}' "$SAMPLE_TABLE"); do
+            if [[ $sample != $CONTROL ]]; then
+                run_DiMo "$sample" "$CONTROL"
+            fi
+        done
     else
-        continue
+        echo "Differential Motif Analysis is not run, since CONTROL is not defined."
+        exit 1
     fi
-  done
 else
-  echo "Differential Motif Analysis is not run as no Control condition was defined!"
-  exit 1
+    echo "Differential Motif Analysis is only run for UBA='bound'. Current UBA='$UBA'."
 fi
-
-
 
 
 #### we also need to add the motifsearch for no footrprints but only motifs with p-value
