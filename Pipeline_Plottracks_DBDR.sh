@@ -24,7 +24,8 @@ NAMES_OF_BW_SAMPLE=${6:-} # often the same as SAMPLE_Name. Identifier for the Sa
 TRACK_COLORS=${7:-} # Color of the peaks in the bigwig shown in the figure, requires same amount as Sample names and bigwig samples
 PATH_TO_TF_DIRECTORIES=$8 # Where are the BINDetect_outputs saved you want as input to vizualize the footprints in the genome e.g /media/group/project/Footprinting/...
 SAMPLE_NAMES=($9) # not required when SAMPLE_TABLE is given but required if not
-CONTROL=${10:-}
+CONTROL=${10:-} # what is the control sample for the differenetial comparision, can also be empty ""
+UBA=${11:-} # was TF found as bound, unbound or all
 
 
 
@@ -177,13 +178,13 @@ fi
 
 # Common loop (runs in both cases)
 for Sample in "${SAMPLE_NAMES[@]}"; do
-    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_bound.bed"
+    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_${UBA}.bed"
     > "$OUTPUT"   # create/empty output file
 
     echo "Processing sample: $Sample"
 
     for TF in "${TF_LIST[@]}"; do
-        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_bound.bed"
+        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_${UBA}.bed"
 
         if [[ -f "$BEDFILE" ]]; then
             echo "Adding $TF to $OUTPUT"
@@ -207,7 +208,7 @@ done
 
 run_plottracks() {
     local sample=$1
-    local TFBS="$PWD/selected_TF_Footprints/merged_TFs_${sample}_bound.bed"
+    local TFBS="$PWD/selected_TF_Footprints/merged_TFs_${sample}_${UBA}.bed"
     local OUTDIR="PLOTTracks/${sample}"
     mkdir -p "$OUTDIR"
 
@@ -245,22 +246,19 @@ fi
 #  Differential Motifs of given TFs as Table output
 # -------------------------------------------------------------------------
 
-
-
-
 run_DiMo() {
   local sample=$1
   local control=$2
-  local PATH_TO_FILES=$PWD/selected_TF_Footprints/merged_TFs_${Sample}_bound.bed
-  local OUTDIR="Differential_Motifs/$Sample"
+  local PATH_TO_FILES=$PWD/selected_TF_Footprints/
+  local OUTDIR="Differential_Motifs/${sample}_vs_${control}"
 
 # Iterate over all conditions (excluding GFP0h)
-for file in "$PATH_TO_FILES"/*_bound.bed; do
-    echo "Processing comparison for: $sample"
+for file in "$PATH_TO_FILES"/*_$UBA.bed; do # hier müsste man anpassen!
+    echo "Processing comparison for: $sample vs $control"
 
     # Define output files for overlapping and non-overlapping regions
-    OVERLAP_FILE="${OUTDIR}/${sample}_overlap_with_GFP0h.bed"
-    NON_OVERLAP_FILE="${OUTDIR}/${sample}_non_overlap_with_GFP0h.bed"
+    OVERLAP_FILE="${OUTDIR}/${sample}_overlap_with_${control}.bed"
+    NON_OVERLAP_FILE="${OUTDIR}/${sample}_non_overlap_with_${control}.bed"
 
     # Get the overlapping regions between GFP0h and the current condition
     bedtools intersect -a "$control" -b "$sample" -wa -u > "$OVERLAP_FILE"
