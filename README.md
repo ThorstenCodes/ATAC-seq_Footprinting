@@ -29,13 +29,13 @@ These scripts provide a **lightweight and reproducible alternative** to full wor
 * **Customizable Post-processing**: Focus your analysis on specific TFs and genomic regions of interest.  
 * **Visualization**: Generates `TOBIAS PlotTracks` for visualizing TF footprints, ATAC-seq signals, and gene annotations in specific loci.  
 * **Extended Analysis**: Includes custom functions for differential **motif analysis** using `bedtools`, providing an added layer of biological insight.  
-* **Robustness**: The scripts include help menus (`-h` or `--help`).  
+
 
 ## Prerequisites
 
 To run these scripts, you must have the following software installed and accessible in your system's `PATH`:
 
-* **[TOBIAS](https://github.com/loosolab/TOBIAS)** (v0.15.0 or later recommended)  
+* **[TOBIAS](https://github.com/loosolab/TOBIAS)** (v0.15.0 or later recommended)
 * **[bedtools](https://bedtools.readthedocs.io/en/latest/)** (v2.30.0 or later recommended)  
 * Standard command-line tools: `wget`, `gunzip`, `sort`, `awk`, `sed`, `uniq`  
 
@@ -56,6 +56,12 @@ To run these scripts, you must have the following software installed and accessi
 
 ## Usage
 
+All scripts support `-h` or `--help` to display available arguments and usage examples. For example:
+
+```bash TOBIAS.sh -h ```
+or
+```bash PLOTracks_differential_binding.sh --help```
+
 ### Script 1: `TOBIAS.sh`
 
 This script handles the core TOBIAS workflow for ATAC-seq footprinting. You must provide the necessary input files as arguments.
@@ -63,35 +69,38 @@ This script handles the core TOBIAS workflow for ATAC-seq footprinting. You must
 **Single-sample analysis**:  
 This example runs the full pipeline for all BAM files in the `/path/to/BAMs` directory.
 
-```bash
-./TOBIAS.sh /path/to/BAMs peaks.bed genome.fa blacklist.bed motifs.meme results 8 "" Single
+```bash TOBIAS.sh /path/to/BAMs peaks.bed genome.fa blacklist.bed motifs.meme results 8 "" Single```
 
-Differential analysis:
+**Differential analysis**:
 This example compares Control_Sample against Treated_Sample and restricts the analysis to regions specified in regions.bed.
 
-````bash ./TOBIAS.sh /path/to/BAMs peaks.bed genome.fa blacklist.bed motifs.meme results 8 /path/to/regions.bed Differential Control_Sample Treated_Sample´´´
+```bash ./TOBIAS.sh /path/to/BAMs peaks.bed genome.fa blacklist.bed motifs.meme results 8 /path/to/regions.bed Differential Control_Sample Treated_Sample```
 
-Script 2: PLOTracks_differential_binding.sh
+### Script 2: PLOTracks_differential_binding.sh
 
 This script is for advanced analysis and visualization of BINDetect outputs. It requires a specific configuration of input files.
 
-Example 1: Using a sample table for PlotTracks and analyzing specific TFs
+**Example 1**: Using a sample table for PlotTracks and analyzing specific TFs
 This command analyzes IRF1 and IRF2 binding using the settings from sample_table.txt.
 
-./PLOTracks_differential_binding.sh Human "IRF1 IRF2" loci.bed sample_table.txt "" "" "" /path/to/TF_outputs "Sample1 Sample2" Control_Sample bound
+´´´bash PLOTracks_differential_binding.sh Human "IRF1 IRF2" loci.bed sample_table.txt "" "" "" /path/to/TF_outputs "Sample1 Sample2" Control_Sample bound´´´
 
 
-Example 2: Using a TF list file and specifying bigwigs directly
+**Example 2**: Using a TF list file and specifying bigwigs directly
 This command reads a list of TFs from tfs.txt and uses a space-separated list of bigwigs and their corresponding colors for visualization.
 
-./PLOTracks_differential_binding.sh Mouse tfs.txt loci.bed "" "/path/to/bw/*.bw" "Sample1 Sample2" "red blue" /path/to/TF_outputs "Sample1 Sample2" "" all
+´´´bash PLOTracks_differential_binding.sh Mouse tfs.txt loci.bed "" "/path/to/bw/*.bw" "Sample1 Sample2" "red blue" /path/to/TF_outputs "Sample1 Sample2" "" all´´´
 
-Contributing
+## Contributing
 
 If you find a bug or have an idea for an improvement, feel free to open an issue or submit a pull request. Contributions are welcome.
 
-Citation
+## Citation
 
-If you use TOBIAS itself, please cite:
+## Acknowledgment / Citation
 
-Bentsen et al., Nature Communications, 2020.
+This repository provides wrapper scripts that utilize the **TOBIAS** framework for ATAC-seq footprinting analysis.  
+If you use TOBIAS in your work, please cite the original publication:
+
+Bentsen et al., *Nature Communications*, 2020.
+
