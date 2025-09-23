@@ -1,4 +1,44 @@
 #!/usr/bin/env bash
+
+if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  cat << EOF
+Usage: "$0" PATH_BAM_FILES PEAKS GENOME BLACKLIST MOTIFS OUTDIR THREADS [REGIONS] MODUS [CONTROL] [TREATMENT]
+
+Arguments:
+  PATH_BAM_FILES     Path to folder containing BAM files (ATAC BAM files)
+  PEAKS              BED file with ATAC peaks (for multiple replicates, consensus peaks are recommended)
+  GENOME             Reference genome FASTA (e.g., from Gencode: mmu_GRCm38_gencode.fa)
+  BLACKLIST          Path to a BED file with blacklisted regions (e.g. from https://github.com/Boyle-Lab/Blacklist)
+  MOTIFS             Motif file(s) for BINDetect, e.g. from HOCOMOCO: HOCOMOCOv11_core_MOUSE_mono_meme_format.meme
+  OUTDIR             Path to output directory
+  THREADS            Number of CPU threads to use
+  REGIONS            Optional: BED file with specific regions to compare differential footprinting.
+                     If not provided, REGIONS = PEAKS. Genome-wide comparison is not recommended (memory intensive).
+  MODUS              Single or Differential
+  CONTROL            Sample name of control sample (required if MODUS=Differential)
+  TREATMENT          Sample name of treated/genetically modified sample (required if MODUS=Differential)
+
+Description:
+  This pipeline runs the TOBIAS workflow:
+    1. ATACorrect to correct Tn5 bias in BAM files
+    2. FootprintScores to compute footprint scores
+    3. BINDetect for TF binding analysis (single or differential)
+
+Examples:
+  Single sample analysis:
+    "$0" /path/to/BAMs peaks.bed hg38 blacklist.bed motifs.meme results 8 "" Single
+
+  Differential analysis:
+    "$0" /path/to/BAMs peaks.bed hg38 blacklist.bed motifs.meme results 8 /path/to/regions.bed Differential Control Sample
+
+Notes:
+  - If REGIONS is provided, footprint scoring is restricted to those regions.
+  - Differential analysis requires CONTROL and TREATMENT samples.
+  - You can call the script with -h or --help to see this message.
+EOF
+  exit 0
+fi
+
 set -euo pipefail
 
 # Arguments
