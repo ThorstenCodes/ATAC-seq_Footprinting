@@ -83,13 +83,13 @@ This script is for advanced analysis and visualization of BINDetect outputs. It 
 **Example 1**: Using a sample table for PlotTracks and analyzing specific TFs
 This command analyzes IRF1 and IRF2 binding using the settings from sample_table.txt.
 
-´´´bash PLOTracks_differential_binding.sh Human "IRF1 IRF2" loci.bed sample_table.txt "" "" "" /path/to/TF_outputs "Sample1 Sample2" Control_Sample bound´´´
+```bash PLOTracks_differential_binding.sh Human "IRF1 IRF2" loci.bed sample_table.txt "" "" "" /path/to/TF_outputs "Sample1 Sample2" Control_Sample bound```
 
 
 **Example 2**: Using a TF list file and specifying bigwigs directly
 This command reads a list of TFs from tfs.txt and uses a space-separated list of bigwigs and their corresponding colors for visualization.
 
-´´´bash PLOTracks_differential_binding.sh Mouse tfs.txt loci.bed "" "/path/to/bw/*.bw" "Sample1 Sample2" "red blue" /path/to/TF_outputs "Sample1 Sample2" "" all´´´
+```bash PLOTracks_differential_binding.sh Mouse tfs.txt loci.bed "" "/path/to/bw/*.bw" "Sample1 Sample2" "red blue" /path/to/TF_outputs "Sample1 Sample2" "" all```
 
 ## Contributing
 
