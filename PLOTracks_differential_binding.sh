@@ -214,6 +214,7 @@ else
     echo "SAMPLE_NAMES: ${SAMPLE_NAMES[*]}"
 fi
 
+
 if [[ $UBA == "bound" || $UBA == "unbound" ]]; then
     # per-sample merging
     for Sample in "${SAMPLE_NAMES[@]}"; do
@@ -222,7 +223,7 @@ if [[ $UBA == "bound" || $UBA == "unbound" ]]; then
         echo "Processing sample: $Sample"
 
         for TF in "${TF_LIST[@]}"; do
-            BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_${Sample}_${UBA}.bed"
+            BEDFILE="$PATH_TO_TF_DIRECTORIES/${Sample}/_${TF}/beds/_${TF}_${Sample}_${UBA}.bed"
             if [[ -f "$BEDFILE" ]]; then
                 echo "Adding $TF to $OUTPUT"
                 cat "$BEDFILE" >> "$OUTPUT"
@@ -238,25 +239,26 @@ if [[ $UBA == "bound" || $UBA == "unbound" ]]; then
     done
 
 elif [[ $UBA == "all" ]]; then
-    # single merged file for all TFs, no per-sample dependency
-    OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_all.bed"
-    > "$OUTPUT"
-    echo "Merging Footprints for TFs found in all samples"
+  for Sample in "${SAMPLE_NAMES[@]}"; do
+          OUTPUT="$PWD/selected_TF_Footprints/merged_TFs_${Sample}_all.bed"
+          > "$OUTPUT"
+          echo "Merging Footprints for TFs found in sample: $Sample (UBA=all)"
 
-    for TF in "${TF_LIST[@]}"; do
-        BEDFILE="$PATH_TO_TF_DIRECTORIES/_${TF}/beds/_${TF}_all.bed"
-        if [[ -f "$BEDFILE" ]]; then
-            echo "Adding $TF to $OUTPUT"
-            cat "$BEDFILE" >> "$OUTPUT"
-        else
-            echo "Warning: $BEDFILE not found, skipping $TF"
-        fi
-    done
+          for TF in "${TF_LIST[@]}"; do
+              BEDFILE="$PATH_TO_TF_DIRECTORIES/${Sample}/_${TF}/beds/_${TF}_${Sample}_all.bed"
+              if [[ -f "$BEDFILE" ]]; then
+                  echo "Adding $TF to $OUTPUT"
+                  cat "$BEDFILE" >> "$OUTPUT"
+              else
+                  echo "Warning: $BEDFILE not found, skipping $TF"
+              fi
+          done
 
-    # Sort and remove duplicates for the single all-file
-    TMP="${OUTPUT%.bed}.tmp"
-    sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
-    echo "Merged file written to ${OUTPUT}"
+          # Sort and remove duplicates for the single all-file
+          TMP="${OUTPUT%.bed}.tmp"
+          sort -k1,1 -k2,2n "$OUTPUT" | uniq > "$TMP" && mv "$TMP" "$OUTPUT"
+          echo "Merged file written to ${OUTPUT}"
+  done
 
 else
     echo "UBA variable needs to be bound, unbound or all !!!"
@@ -325,9 +327,6 @@ else
     echo "UBA variable must be bound, unbound or all !!!"
     exit 1
 fi
-
-
-
 
 # --------------------------------------------------------------------------
 #  Differential Motifs of given TFs as Table output
